@@ -719,6 +719,10 @@ class ProcessBuilder {
 
         const libArr = this.vanillaManifest.libraries
         fs.ensureDirSync(tempNativePath)
+        // 호타이쿤: 26.x 버전 JSON 은 -Djava.library.path=${natives_directory}/java 를 쓴다.
+        // natives 를 루트와 java/ 양쪽에 풀어 둔다(옛 버전은 루트, 새 버전은 java/).
+        const tempNativeJavaPath = path.join(tempNativePath, 'java')
+        fs.ensureDirSync(tempNativeJavaPath)
         for(let i=0; i<libArr.length; i++){
             const lib = libArr[i]
             if(isLibraryCompatible(lib.rules, lib.natives)){
@@ -799,16 +803,21 @@ class ProcessBuilder {
 
                         const extractName = fileName.includes('/') ? fileName.substring(fileName.lastIndexOf('/')) : fileName
 
-                        // Extract the file.
+                        // Extract the file. (동기로 써서 게임이 뜨기 전에 다 풀려 있게)
                         if(!shouldExclude){
-                            fs.writeFile(path.join(tempNativePath, extractName), zipEntries[i].getData(), (err) => {
-                                if(err){
+                            const data = zipEntries[i].getData()
+                            for(const dir of [tempNativePath, tempNativeJavaPath]){
+                                try {
+                                    fs.writeFileSync(path.join(dir, extractName), data)
+                                } catch(err) {
                                     logger.error('Error while extracting native library:', err)
                                 }
-                            })
+                            }
                         }
 
                     }
+                    // 호타이쿤: natives jar 도 클래스패스에 넣는다 — LWJGL 3.4 는 클래스패스의 jar 에서도 dll 을 찾는다.
+                    libs['natives|' + lib.name] = to
                 }
                 // No natives
                 else {
