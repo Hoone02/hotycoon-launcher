@@ -149,7 +149,7 @@ function updateSelectedAccount(authUser){
             username = authUser.displayName
         }
         if(authUser.uuid != null){
-            document.getElementById('avatarContainer').style.backgroundImage = `url('https://mc-heads.net/body/${authUser.uuid}/right')`
+            document.getElementById('avatarContainer').style.backgroundImage = `url('https://mc-heads.net/avatar/${authUser.uuid}/32')`
         }
     }
     user_text.innerHTML = username
@@ -163,14 +163,15 @@ function updateSelectedServer(serv){
     }
     ConfigManager.setSelectedServer(serv != null ? serv.rawServer.id : null)
     ConfigManager.save()
-    server_selection_button.innerHTML = '&#8226; ' + (serv != null ? serv.rawServer.name : Lang.queryJS('landing.noSelection'))
+    server_selection_button.innerHTML = (serv != null ? serv.rawServer.name : Lang.queryJS('landing.noSelection'))
+    hotyUpdateServerInfo(serv)
     if(getCurrentView() === VIEWS.settings){
         animateSettingsTabRefresh()
     }
     setLaunchEnabled(serv != null)
 }
 // Real text is set in uibinder.js on distributionIndexDone.
-server_selection_button.innerHTML = '&#8226; ' + Lang.queryJS('landing.selectedServer.loading')
+server_selection_button.innerHTML = Lang.queryJS('landing.selectedServer.loading')
 server_selection_button.onclick = async e => {
     e.target.blur()
     await toggleServerSelection(true)
@@ -241,18 +242,21 @@ const refreshServerStatus = async (fade = false) => {
 
     let pLabel = Lang.queryJS('landing.serverStatus.server')
     let pVal = Lang.queryJS('landing.serverStatus.offline')
+    let online = false
 
     try {
 
         const servStat = await getServerStatus(47, serv.hostname, serv.port)
         console.log(servStat)
         pLabel = Lang.queryJS('landing.serverStatus.players')
-        pVal = servStat.players.online + '/' + servStat.players.max
+        pVal = servStat.players.online + ' / ' + servStat.players.max
+        online = true
 
     } catch (err) {
         loggerLanding.warn('Unable to refresh server status, assuming offline.')
         loggerLanding.debug(err)
     }
+    hotySetLive(online)
     if(fade){
         $('#server_status_wrapper').fadeOut(250, () => {
             document.getElementById('landingPlayerLabel').innerHTML = pLabel
@@ -705,6 +709,9 @@ function slide_(up){
 
 // Bind news button.
 document.getElementById('newsButton').onclick = () => {
+    if(HOTY_NO_NEWS){
+        return
+    }
     // Toggle tabbing.
     if(newsActive){
         $('#landingContainer *').removeAttr('tabindex')
@@ -1024,3 +1031,63 @@ async function loadNews(){
 
     return await promise
 }
+
+
+/* =========================================================
+ * 호타이쿤: 공지 판 · 서버 판 · 런처 버전
+ * ========================================================= */
+// eslint-disable-next-line no-var
+var HOTY_NO_NEWS = true
+const HOTY_NOTICE_URL = 'https://raw.githubusercontent.com/Hoone02/hotycoon-launcher-files/main/notice.json'
+
+function hotyEsc(t){
+    return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' })[c])
+}
+
+function hotyUpdateServerInfo(serv){
+    const name = document.getElementById('hotyServerName')
+    const mods = document.getElementById('hotyModCount')
+    if(serv == null){
+        if(name) name.textContent = Lang.queryJS('landing.noSelection')
+        if(mods) mods.textContent = '-'
+        return
+    }
+    if(name) name.textContent = serv.rawServer.name
+    const count = serv.modules.filter(m => m.rawModule.type === 'FabricMod' || m.rawModule.type === 'ForgeMod').length
+    if(mods) mods.textContent = count + '개'
+    const ver = document.getElementById('hotyMcVersion')
+    if(ver) ver.textContent = serv.rawServer.minecraftVersion
+}
+
+function hotySetLive(online){
+    const live = document.getElementById('hotyLive')
+    if(live == null) return
+    live.classList.toggle('off', !online)
+    live.lastChild.textContent = online ? '접속 가능' : '서버 꺼짐'
+}
+
+async function hotyLoadNotice(){
+    const box = document.getElementById('hotyNotice')
+    if(box == null) return
+    try {
+        const res = await fetch(HOTY_NOTICE_URL + '?t=' + Date.now(), { cache: 'no-store' })
+        if(!res.ok) throw new Error('HTTP ' + res.status)
+        const data = await res.json()
+        const posts = (data.posts || []).slice(0, 2)
+        if(posts.length === 0) throw new Error('empty')
+        box.innerHTML = posts.map(p => `<div class="hoty-post">
+            <span class="hoty-date${p.new ? ' new' : ''}">${p.new ? 'NEW' : hotyEsc(p.date)}</span>
+            <span class="hoty-t">${hotyEsc(p.title)}</span>
+            <span class="hoty-b">${hotyEsc(p.body)}</span></div>`).join('')
+    } catch(err) {
+        loggerLanding.warn('공지를 불러오지 못했어요.', err)
+        box.innerHTML = '<div class="hoty-post empty"><span class="hoty-b">공지를 불러오지 못했어요.</span></div>'
+    }
+}
+
+(function hotyInit(){
+    const v = document.getElementById('hotyLauncherVersion')
+    if(v) v.textContent = remote.app.getVersion()
+    hotyLoadNotice()
+    setInterval(hotyLoadNotice, 10 * 60 * 1000)
+})()
