@@ -46,6 +46,7 @@ class ProcessBuilder {
      */
     build(){
         fs.ensureDirSync(this.gameDir)
+        this._applyHotyDefaults()
         const tempNativePath = path.join(os.tmpdir(), ConfigManager.getTempNativeFolder(), crypto.pseudoRandomBytes(16).toString('hex'))
         process.throwDeprecation = true
         this.setupLiteLoader()
@@ -702,6 +703,47 @@ class ProcessBuilder {
         this._processClassPathList(cpArgs)
 
         return cpArgs
+    }
+
+    /**
+     * 호타이쿤: 이 인스턴스를 런처로 처음 켤 때 한 번만 기본 설정을 넣는다.
+     * - 한국어, 튜토리얼(이동·나무 캐기 안내) 끔, 접근성 첫 화면·멀티플레이 경고 건너뜀
+     * - options.txt 가 이미 있어도 처음 한 번은 덮어쓰고, 표시 파일(.hotycoon-defaults)을 남겨
+     *   그 뒤로 사용자가 바꾼 설정은 건드리지 않는다.
+     */
+    _applyHotyDefaults(){
+        const marker = path.join(this.gameDir, '.hotycoon-defaults')
+        if(fs.existsSync(marker)){
+            return
+        }
+        const DEFAULTS = {
+            lang: 'ko_kr',
+            tutorialStep: 'none',
+            onboardAccessibility: 'false',
+            skipMultiplayerWarning: 'true',
+            joinedFirstServer: 'true'
+        }
+        try {
+            const optionsFile = path.join(this.gameDir, 'options.txt')
+            const lines = fs.existsSync(optionsFile) ? fs.readFileSync(optionsFile, 'utf-8').split(/\r?\n/) : []
+            const seen = new Set()
+            const out = lines.filter(l => l.length > 0).map(l => {
+                const key = l.substring(0, l.indexOf(':'))
+                if(Object.prototype.hasOwnProperty.call(DEFAULTS, key)){
+                    seen.add(key)
+                    return `${key}:${DEFAULTS[key]}`
+                }
+                return l
+            })
+            for(const [k, v] of Object.entries(DEFAULTS)){
+                if(!seen.has(k)) out.push(`${k}:${v}`)
+            }
+            fs.writeFileSync(optionsFile, out.join('\n') + '\n')
+            fs.writeFileSync(marker, new Date().toISOString())
+            logger.info('호타이쿤 기본 설정 적용(한국어 · 튜토리얼 끔).')
+        } catch(err) {
+            logger.warn('기본 설정을 넣지 못했어요.', err)
+        }
     }
 
     /**

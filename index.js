@@ -77,7 +77,8 @@ ipcMain.on('autoUpdateAction', (event, arg, data) => {
             }
             break
         case 'installUpdateNow':
-            autoUpdater.quitAndInstall()
+            // 호타이쿤: 설치기 창을 띄우지 않고(silent) 설치 후 런처를 다시 켠다
+            autoUpdater.quitAndInstall(true, true)
             break
         default:
             console.log('Unknown argument', arg)
