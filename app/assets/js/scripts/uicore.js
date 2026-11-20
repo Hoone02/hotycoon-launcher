@@ -48,7 +48,7 @@ if(!isDev){
                 loggerAutoUpdater.info('New update available', info.version)
                 
                 if(process.platform === 'darwin'){
-                    info.darwindownload = `https://github.com/dscalzi/HeliosLauncher/releases/download/v${info.version}/Helios-Launcher-setup-${info.version}${process.arch === 'arm64' ? '-arm64' : '-x64'}.dmg`
+                    info.darwindownload = `https://github.com/Hoone02/hotycoon-launcher/releases/download/v${info.version}/HotycoonLauncher-setup-${info.version}-${process.arch}.dmg`
                     showUpdateUI(info)
                 }
                 
@@ -62,6 +62,7 @@ if(!isDev){
                     }
                 })
                 showUpdateUI(info)
+                promptInstallUpdate(info)
                 break
             case 'update-not-available':
                 loggerAutoUpdater.info('No new update found.')
@@ -102,6 +103,26 @@ if(!isDev){
  */
 function changeAllowPrerelease(val){
     ipcRenderer.send('autoUpdateAction', 'allowPrereleaseChange', val)
+}
+
+/**
+ * 호타이쿤: 새 런처를 다 받으면 바로 물어본다. "나중에"를 눌러도 런처를 끌 때 조용히 설치된다
+ * (electron-updater autoInstallOnAppQuit 기본값 true).
+ */
+function promptInstallUpdate(info){
+    setOverlayContent(
+        '런처 업데이트 준비 완료',
+        `새 런처 버전 <b>${info.version}</b> 을(를) 받았어요.<br>지금 다시 시작해서 적용할까요?<br><br>나중에를 누르면 런처를 끌 때 자동으로 설치돼요.`,
+        '지금 다시 시작',
+        '나중에'
+    )
+    setOverlayHandler(() => {
+        ipcRenderer.send('autoUpdateAction', 'installUpdateNow')
+    })
+    setDismissHandler(() => {
+        toggleOverlay(false)
+    })
+    toggleOverlay(true, true)
 }
 
 function showUpdateUI(info){

@@ -1,6 +1,13 @@
-appId: 'helioslauncher'
-productName: 'Helios Launcher'
-artifactName: '${productName}-setup-${version}.${ext}'
+appId: 'hotycoonlauncher'
+productName: 'Hotycoon Launcher'
+artifactName: 'HotycoonLauncher-setup-${version}.${ext}'
+
+# 자동 업데이트: GitHub 릴리스(latest.yml)를 본다
+publish:
+  provider: 'github'
+  owner: 'Hoone02'
+  repo: 'hotycoon-launcher'
+  releaseType: 'release'
 
 copyright: 'Copyright © 2018-2026 Daniel Scalzi'
 
@@ -25,6 +32,7 @@ nsis:
   perMachine: false
   allowElevation: true
   allowToChangeInstallationDirectory: true
+  shortcutName: '호타이쿤 런처'
 
 # macOS Configuration
 mac:
