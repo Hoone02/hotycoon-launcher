@@ -1070,7 +1070,7 @@ async function hotyLoadNotice(){
     const box = document.getElementById('hotyNotice')
     if(box == null) return
     try {
-        const res = await fetch(HOTY_NOTICE_URL + '?t=' + Date.now(), { cache: 'no-store' })
+        const res = await fetch(await require('./assets/js/distromanager').resolveFreshUrl(HOTY_NOTICE_URL), { cache: 'no-store' })
         if(!res.ok) throw new Error('HTTP ' + res.status)
         const data = await res.json()
         const posts = (data.posts || []).slice(0, 2)
