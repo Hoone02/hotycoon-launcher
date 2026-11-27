@@ -10,6 +10,32 @@ const path                  = require('path')
 
 const ConfigManager            = require('./configmanager')
 
+/** 호타이쿤 기본 셰이더 — 파일은 distribution 의 File 모듈(Modrinth CDN)로 shaderpacks/ 에 받는다. */
+const HOTY_SHADER_PACK = 'ComplementaryReimagined_r5.10.zip'
+
+/**
+ * key<sep>value 줄로 된 설정 파일(options.txt·*.properties)에 값을 넣는다. 있는 키는 바꾸고 없는 키는 붙인다.
+ * 파일이 없으면 만든다. 다른 줄(주석 포함)은 그대로 둔다.
+ */
+function mergeKeyValueFile(file, sep, values){
+    const lines = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8').split(/\r?\n/) : []
+    const seen = new Set()
+    const out = lines.filter(l => l.length > 0).map(l => {
+        const idx = l.indexOf(sep)
+        const key = idx < 0 ? l : l.substring(0, idx)
+        if(!l.startsWith('#') && Object.prototype.hasOwnProperty.call(values, key)){
+            seen.add(key)
+            return `${key}${sep}${values[key]}`
+        }
+        return l
+    })
+    for(const [k, v] of Object.entries(values)){
+        if(!seen.has(k)) out.push(`${k}${sep}${v}`)
+    }
+    fs.ensureDirSync(path.dirname(file))
+    fs.writeFileSync(file, out.join('\n') + '\n')
+}
+
 const logger = LoggerUtil.getLogger('ProcessBuilder')
 
 
@@ -706,43 +732,51 @@ class ProcessBuilder {
     }
 
     /**
-     * 호타이쿤: 이 인스턴스를 런처로 처음 켤 때 한 번만 기본 설정을 넣는다.
-     * - 한국어, 튜토리얼(이동·나무 캐기 안내) 끔, 접근성 첫 화면·멀티플레이 경고 건너뜀
-     * - options.txt 가 이미 있어도 처음 한 번은 덮어쓰고, 표시 파일(.hotycoon-defaults)을 남겨
-     *   그 뒤로 사용자가 바꾼 설정은 건드리지 않는다.
+     * 호타이쿤: 이 인스턴스에 기본 설정을 단계별로 한 번씩 넣는다.
+     * 단계마다 표시 파일을 남겨, 그 뒤로 사용자가 바꾼 설정은 건드리지 않는다.
+     * 새 기본값은 단계를 새로 붙인다(이미 적용된 단계를 고치면 기존 설치본에는 안 들어간다).
+     * - 1단계(.hotycoon-defaults): 한국어, 튜토리얼(이동·나무 캐기 안내) 끔, 접근성 첫 화면·멀티플레이 경고 건너뜀
+     * - 2단계(.hotycoon-defaults-2): GUI 비율 3, Complementary Reimagined 셰이더 켬(Iris)
      */
     _applyHotyDefaults(){
-        const marker = path.join(this.gameDir, '.hotycoon-defaults')
-        if(fs.existsSync(marker)){
-            return
-        }
-        const DEFAULTS = {
-            lang: 'ko_kr',
-            tutorialStep: 'none',
-            onboardAccessibility: 'false',
-            skipMultiplayerWarning: 'true',
-            joinedFirstServer: 'true'
-        }
-        try {
-            const optionsFile = path.join(this.gameDir, 'options.txt')
-            const lines = fs.existsSync(optionsFile) ? fs.readFileSync(optionsFile, 'utf-8').split(/\r?\n/) : []
-            const seen = new Set()
-            const out = lines.filter(l => l.length > 0).map(l => {
-                const key = l.substring(0, l.indexOf(':'))
-                if(Object.prototype.hasOwnProperty.call(DEFAULTS, key)){
-                    seen.add(key)
-                    return `${key}:${DEFAULTS[key]}`
+        const STEPS = [
+            {
+                marker: '.hotycoon-defaults',
+                files: {
+                    'options.txt': { sep: ':', values: {
+                        lang: 'ko_kr',
+                        tutorialStep: 'none',
+                        onboardAccessibility: 'false',
+                        skipMultiplayerWarning: 'true',
+                        joinedFirstServer: 'true'
+                    }}
                 }
-                return l
-            })
-            for(const [k, v] of Object.entries(DEFAULTS)){
-                if(!seen.has(k)) out.push(`${k}:${v}`)
+            },
+            {
+                marker: '.hotycoon-defaults-2',
+                files: {
+                    'options.txt': { sep: ':', values: { guiScale: '3' } },
+                    'config/iris.properties': { sep: '=', values: {
+                        enableShaders: 'true',
+                        shaderPack: HOTY_SHADER_PACK
+                    }}
+                }
             }
-            fs.writeFileSync(optionsFile, out.join('\n') + '\n')
-            fs.writeFileSync(marker, new Date().toISOString())
-            logger.info('호타이쿤 기본 설정 적용(한국어 · 튜토리얼 끔).')
-        } catch(err) {
-            logger.warn('기본 설정을 넣지 못했어요.', err)
+        ]
+        for(const step of STEPS){
+            const marker = path.join(this.gameDir, step.marker)
+            if(fs.existsSync(marker)){
+                continue
+            }
+            try {
+                for(const [rel, spec] of Object.entries(step.files)){
+                    mergeKeyValueFile(path.join(this.gameDir, rel), spec.sep, spec.values)
+                }
+                fs.writeFileSync(marker, new Date().toISOString())
+                logger.info(`호타이쿤 기본 설정 적용(${step.marker}).`)
+            } catch(err) {
+                logger.warn(`기본 설정을 넣지 못했어요(${step.marker}).`, err)
+            }
         }
     }
 

@@ -78,8 +78,8 @@ function resolveSelectedRAM(ram) {
 const DEFAULT_CONFIG = {
     settings: {
         game: {
-            resWidth: 1280,
-            resHeight: 720,
+            resWidth: 1920,
+            resHeight: 1080,
             fullscreen: false,
             autoConnect: true,
             launchDetached: true
@@ -99,7 +99,8 @@ const DEFAULT_CONFIG = {
     selectedAccount: null,
     authenticationDatabase: {},
     modConfigurations: [],
-    javaConfig: {}
+    javaConfig: {},
+    hotyFhd: true
 }
 
 let config = null
@@ -147,6 +148,7 @@ exports.load = function(){
             exports.save()
         }
         if(doValidate){
+            migrateHotyResolution(config)
             config = validateKeySet(DEFAULT_CONFIG, config)
             exports.save()
         }
@@ -159,6 +161,25 @@ exports.load = function(){
  */
 exports.isLoaded = function(){
     return config != null
+}
+
+/**
+ * 호타이쿤: 기본 창 크기를 1280x720 에서 FHD(1920x1080)로 바꿨다. 예전 기본값 그대로인 설치본만
+ * 한 번 FHD 로 옮기고(hotyFhd 표시), 사용자가 직접 고른 크기는 건드리지 않는다.
+ *
+ * @param {Object} cfg 읽어 들인 설정(validateKeySet 전).
+ */
+function migrateHotyResolution(cfg){
+    if(cfg == null || cfg.hotyFhd === true){
+        return
+    }
+    const game = cfg.settings && cfg.settings.game
+    if(game != null && game.resWidth === 1280 && game.resHeight === 720){
+        game.resWidth = 1920
+        game.resHeight = 1080
+        logger.info('기본 창 크기를 FHD(1920x1080)로 바꿨어요.')
+    }
+    cfg.hotyFhd = true
 }
 
 /**
